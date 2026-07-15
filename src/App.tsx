@@ -519,6 +519,41 @@ School Librarian`;
     localStorage.setItem('library_lang', language);
   }, [language]);
 
+  // Google OAuth message listener
+  useEffect(() => {
+    const handleGoogleMessage = (event: MessageEvent) => {
+      // Basic security filter to prevent arbitrary window messaging
+      const origin = event.origin;
+      if (!origin.endsWith('.run.app') && !origin.includes('localhost') && !origin.startsWith('https://ais-')) {
+        return;
+      }
+      
+      if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data?.user) {
+        setCurrentUser(event.data.user);
+        localStorage.setItem('library_user', JSON.stringify(event.data.user));
+        setActiveView('dashboard');
+        
+        // Refresh data to fetch newly created students or update any relevant bindings
+        loadMysqlData();
+
+        showSuccess(
+          language === 'kh'
+            ? `បានចូលប្រើប្រាស់ដោយជោគជ័យជា ${event.data.user.name}!`
+            : `Logged in successfully as ${event.data.user.name}!`
+        );
+      } else if (event.data?.type === 'GOOGLE_AUTH_ERROR') {
+        showError(
+          language === 'kh'
+            ? `ការចូលប្រើប្រាស់មិនបានជោគជ័យ៖ ${decodeURIComponent(event.data.error || '')}`
+            : `Google Login failed: ${decodeURIComponent(event.data.error || '')}`
+        );
+      }
+    };
+
+    window.addEventListener('message', handleGoogleMessage);
+    return () => window.removeEventListener('message', handleGoogleMessage);
+  }, [language]);
+
   // Firebase auth & data listeners (REMOVED)
   useEffect(() => {
     // Firebase removed.
@@ -736,11 +771,77 @@ School Librarian`;
   };
 
   const handleGoogleLogin = async () => {
-    showError(language === 'kh' ? 'មុខងារនេះត្រូវបានបិទ' : 'This feature is disabled');
+    try {
+      const redirectUri = `${window.location.origin}/auth/callback`;
+      const res = await fetch(`/api/auth/google/url?redirect_uri=${encodeURIComponent(redirectUri)}`);
+      if (!res.ok) {
+        throw new Error('Failed to get auth URL');
+      }
+      const { url } = await res.json();
+      
+      const width = 500;
+      const height = 650;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
+      
+      const authWindow = window.open(
+        url,
+        'google_oauth_popup',
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+      
+      if (!authWindow) {
+        showError(
+          language === 'kh'
+            ? 'សូមអនុញ្ញាតឱ្យមានផ្ទាំងប៉ុបអាប់ (popups) សម្រាប់គេហទំព័រនេះ ដើម្បីចូលប្រើប្រាស់។'
+            : 'Please allow popups for this site to login.'
+        );
+      }
+    } catch (err: any) {
+      console.error('Google login error:', err);
+      showError(
+        language === 'kh'
+          ? `ការភ្ជាប់ទៅកាន់ Google បរាជ័យ៖ ${err.message}`
+          : `Google Auth Error: ${err.message}`
+      );
+    }
   };
 
   const handleConnectGoogle = async (): Promise<string | null> => {
-    showError(language === 'kh' ? 'មុខងារនេះត្រូវបានបិទ' : 'This feature is disabled');
+    try {
+      const redirectUri = `${window.location.origin}/auth/callback`;
+      const res = await fetch(`/api/auth/google/url?redirect_uri=${encodeURIComponent(redirectUri)}`);
+      if (!res.ok) {
+        throw new Error('Failed to get auth URL');
+      }
+      const { url } = await res.json();
+      
+      const width = 500;
+      const height = 650;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
+      
+      const authWindow = window.open(
+        url,
+        'google_oauth_popup',
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+      
+      if (!authWindow) {
+        showError(
+          language === 'kh'
+            ? 'សូមអនុញ្ញាតឱ្យមានផ្ទាំងប៉ុបអាប់ (popups) សម្រាប់គេហទំព័រនេះ។'
+            : 'Please allow popups for this site.'
+        );
+      }
+    } catch (err: any) {
+      console.error('Google connect error:', err);
+      showError(
+        language === 'kh'
+          ? `ការភ្ជាប់ទៅកាន់ Google បរាជ័យ៖ ${err.message}`
+          : `Google Auth Error: ${err.message}`
+      );
+    }
     return null;
   };
 

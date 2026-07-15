@@ -381,6 +381,346 @@ const PORT = 3000;
 app.use(express.json({ limit: '50mb' }));
 
 // -----------------------------------------------------------------------------
+// GOOGLE OAUTH & MOCK AUTH ENDPOINTS
+// -----------------------------------------------------------------------------
+
+app.get('/api/auth/google/url', (req, res) => {
+  const { redirect_uri } = req.query;
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    // If credentials are not configured, redirect to our high-fidelity mock selector
+    const mockUrl = `/api/auth/google/mock-login-page?redirect_uri=${encodeURIComponent(redirect_uri as string || '')}`;
+    return res.json({ url: mockUrl, isMock: true });
+  }
+
+  // Construct standard Google OAuth 2.0 authorization URL
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirect_uri as string,
+    response_type: 'code',
+    scope: 'openid email profile',
+    prompt: 'select_account',
+    state: 'google_state_session'
+  });
+
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  res.json({ url: authUrl, isMock: false });
+});
+
+app.get('/api/auth/google/mock-login-page', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="km">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Google - ជ្រើសរើសគណនី / Sign in with Google</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Kantumruy+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+      <style>
+        body {
+          font-family: 'Kantumruy Pro', 'Inter', sans-serif;
+        }
+      </style>
+    </head>
+    <body class="bg-[#F0F4F9] min-h-screen flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-8 md:p-10 shadow-[0_4px_24px_rgba(0,0,0,0.06)] w-full max-w-[450px]">
+        <!-- Google Logo SVG -->
+        <div class="flex justify-center mb-6">
+          <svg class="h-10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+        </div>
+
+        <h1 class="text-[24px] text-center font-medium text-[#1F1F1F] mb-2">ជ្រើសរើសគណនី</h1>
+        <p class="text-center text-[#444746] text-sm mb-6">ដើម្បីបន្តទៅកាន់ <span class="font-medium">ប្រព័ន្ធគ្រប់គ្រងបណ្ណាល័យ</span></p>
+
+        <div class="space-y-1 max-h-[280px] overflow-y-auto mb-6 pr-1">
+          <!-- Option 1: Admin -->
+          <button onclick="selectAccount('admin@school.edu.kh', 'Sambat Chhunheang (Admin)')" class="w-full flex items-center p-3 hover:bg-[#F3F4F6] rounded-xl transition text-left">
+            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 mr-3 text-sm">SC</div>
+            <div class="flex-1">
+              <div class="font-medium text-sm text-[#1F1F1F]">Sambat Chhunheang (Admin)</div>
+              <div class="text-xs text-[#5F6368]">admin@school.edu.kh</div>
+            </div>
+          </button>
+
+          <!-- Option 2: Librarian -->
+          <button onclick="selectAccount('librarian@school.edu.kh', 'Keo Samrang (Librarian)')" class="w-full flex items-center p-3 hover:bg-[#F3F4F6] rounded-xl transition text-left">
+            <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center font-bold text-purple-600 mr-3 text-sm">KS</div>
+            <div class="flex-1">
+              <div class="font-medium text-sm text-[#1F1F1F]">Keo Samrang (Librarian)</div>
+              <div class="text-xs text-[#5F6368]">librarian@school.edu.kh</div>
+            </div>
+          </button>
+
+          <!-- Option 3: Student 1 -->
+          <button onclick="selectAccount('chan.monny@school.edu.kh', 'ចាន់ មុន្នី')" class="w-full flex items-center p-3 hover:bg-[#F3F4F6] rounded-xl transition text-left">
+            <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center font-bold text-green-600 mr-3 text-sm">CM</div>
+            <div class="flex-1">
+              <div class="font-medium text-sm text-[#1F1F1F]">ចាន់ មុន្នី</div>
+              <div class="text-xs text-[#5F6368]">chan.monny@school.edu.kh</div>
+            </div>
+          </button>
+
+          <!-- Option 4: Student 2 -->
+          <button onclick="selectAccount('sokh.kimhour@school.edu.kh', 'សុខ គឹមហួរ')" class="w-full flex items-center p-3 hover:bg-[#F3F4F6] rounded-xl transition text-left">
+            <div class="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center font-bold text-orange-600 mr-3 text-sm">SK</div>
+            <div class="flex-1">
+              <div class="font-medium text-sm text-[#1F1F1F]">សុខ គឹមហួរ</div>
+              <div class="text-xs text-[#5F6368]">sokh.kimhour@school.edu.kh</div>
+            </div>
+          </button>
+        </div>
+
+        <!-- Custom Account Drawer Toggle -->
+        <div class="border-t border-[#E0E2E4] pt-4">
+          <button onclick="toggleCustomForm()" class="w-full flex items-center p-3 hover:bg-[#F3F4F6] rounded-xl transition text-left text-blue-600 font-medium text-sm">
+            <svg class="h-5 w-5 mr-3 text-[#1A73E8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+            </svg>
+            ប្រើប្រាស់គណនីផ្សេងទៀត / Use another account
+          </button>
+        </div>
+
+        <!-- Custom Account Form (Initially hidden) -->
+        <div id="customForm" class="hidden mt-4 bg-gray-50 p-4 rounded-xl space-y-3 border border-gray-100 animate-fadeIn">
+          <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">ព័ត៌មានគណនីថ្មី / New Account info</div>
+          <div>
+            <label class="block text-xs text-gray-600 mb-1">ឈ្មោះពេញ / Full Name</label>
+            <input type="text" id="customName" placeholder="ឧ. ជា សុភ័ក្រ" class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-600 mb-1">អ៊ីមែល / Email</label>
+            <input type="email" id="customEmail" placeholder="ឧ. sopheak@gmail.com" class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          </div>
+          <button onclick="submitCustomAccount()" class="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition">
+            បន្តចូលប្រើប្រាស់ / Sign In
+          </button>
+        </div>
+
+        <div class="text-[11px] text-[#5F6368] leading-relaxed mt-6 text-center">
+          ដើម្បីបន្ត Google នឹងចែករំលែកឈ្មោះ អាសយដ្ឋានអ៊ីមែល និងរូបភាពកម្រងព័ត៌មានរបស់អ្នកជាមួយប្រព័ន្ធគ្រប់គ្រងបណ្ណាល័យ។
+        </div>
+      </div>
+
+      <script>
+        function selectAccount(email, name) {
+          window.location.href = '/auth/callback?code=mock_code&email=' + encodeURIComponent(email) + '&name=' + encodeURIComponent(name);
+        }
+
+        function toggleCustomForm() {
+          const form = document.getElementById('customForm');
+          form.classList.toggle('hidden');
+        }
+
+        function submitCustomAccount() {
+          const name = document.getElementById('customName').value.trim();
+          const email = document.getElementById('customEmail').value.trim();
+          
+          if (!name || !email) {
+            alert('សូមបំពេញឈ្មោះ និងអ៊ីមែលឱ្យបានត្រឹមត្រូវ!');
+            return;
+          }
+          if (!email.includes('@')) {
+            alert('អ៊ីមែលមិនត្រឹមត្រូវទេ!');
+            return;
+          }
+          
+          selectAccount(email, name);
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+app.get(['/auth/callback', '/auth/callback/'], async (req, res) => {
+  const { code, email: mockEmail, name: mockName } = req.query;
+  let email = '';
+  let name = '';
+
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  if (code === 'mock_code') {
+    email = (mockEmail as string) || 'test.user@school.edu.kh';
+    name = (mockName as string) || 'Test User';
+  } else if (code) {
+    // Real Google Auth exchange
+    try {
+      const redirect_uri = `${req.protocol}://${req.get('host')}/auth/callback`;
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code: code as string,
+          client_id: clientId || '',
+          client_secret: clientSecret || '',
+          redirect_uri: redirect_uri,
+          grant_type: 'authorization_code'
+        }).toString()
+      });
+
+      if (!tokenRes.ok) {
+        const errText = await tokenRes.text();
+        throw new Error(`Token exchange failed: ${errText}`);
+      }
+
+      const tokenData = await tokenRes.json();
+      const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+      });
+
+      if (!userRes.ok) {
+        throw new Error('Failed to fetch user profile from Google');
+      }
+
+      const userData = await userRes.json();
+      email = userData.email;
+      name = userData.name || userData.given_name || email.split('@')[0];
+    } catch (err: any) {
+      console.error("Google login exchange error:", err);
+      return res.send(`
+        <html>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'GOOGLE_AUTH_ERROR', error: "${encodeURIComponent(err.message)}" }, '*');
+                window.close();
+              } else {
+                window.location.href = '/?error=auth_failed';
+              }
+            </script>
+            <p>Authentication failed: ${err.message}. Close this window to retry.</p>
+          </body>
+        </html>
+      `);
+    }
+  } else {
+    return res.status(400).send("Authorization code is missing.");
+  }
+
+  // --- Login Resolution (Everyone can log in!) ---
+  let userPayload: any = null;
+  const lowerEmail = email.toLowerCase();
+
+  // 1. Check if email matches a system user (admin/librarian/etc.)
+  let matchedUser = offlineStore.users.find((u: any) => u.username.toLowerCase() === lowerEmail || (u.email && u.email.toLowerCase() === lowerEmail));
+  
+  if (!matchedUser && !isDbOffline) {
+    try {
+      const rows = await runQuery('SELECT * FROM users WHERE LOWER(username) = ? OR LOWER(email) = ?', [lowerEmail, lowerEmail]);
+      if (rows && rows.length > 0) {
+        matchedUser = toCamel(rows[0]);
+      }
+    } catch (e) {}
+  }
+
+  if (matchedUser) {
+    userPayload = {
+      id: matchedUser.id,
+      username: matchedUser.username,
+      name: matchedUser.name,
+      role: matchedUser.role,
+      lastLogin: new Date().toISOString().slice(0, 16).replace('T', ' ')
+    };
+  } else {
+    // 2. Check if email matches an existing student
+    let matchedStudent = offlineStore.students.find((s: any) => s.email && s.email.toLowerCase() === lowerEmail);
+    
+    if (!matchedStudent && !isDbOffline) {
+      try {
+        const rows = await runQuery('SELECT * FROM students WHERE LOWER(email) = ?', [lowerEmail]);
+        if (rows && rows.length > 0) {
+          matchedStudent = toCamel(rows[0]);
+        }
+      } catch (e) {}
+    }
+
+    if (matchedStudent) {
+      userPayload = {
+        id: matchedStudent.id,
+        username: matchedStudent.studentId.toLowerCase(),
+        name: matchedStudent.name,
+        role: 'student',
+        lastLogin: new Date().toISOString().slice(0, 16).replace('T', ' ')
+      };
+    } else {
+      // 3. New user - Everyone can login! "ចូលបានទាំងអស់"
+      // Automatically register them as a new student in the system!
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const studentId = `STU-GEN-${randomSuffix}`;
+      const newStudent: any = {
+        id: `stu-google-${randomSuffix}`,
+        studentId: studentId,
+        name: name,
+        gender: 'M',
+        classGrade: '12A',
+        phoneNumber: '012 ' + Math.floor(100000 + Math.random() * 900000),
+        email: lowerEmail,
+        password: `pass${randomSuffix}`
+      };
+
+      // Save to store
+      offlineStore.students.push(newStudent);
+      saveOfflineDb();
+
+      // Save to DB if online
+      if (!isDbOffline) {
+        try {
+          const dbPool = await getMysqlPool();
+          const connection = await dbPool.getConnection();
+          try {
+            await upsertRow(connection, 'students', newStudent.id, newStudent);
+          } finally {
+            connection.release();
+          }
+        } catch (e) {
+          console.error("Failed to persist newly registered student via Google:", e);
+        }
+      }
+
+      userPayload = {
+        id: newStudent.id,
+        username: studentId.toLowerCase(),
+        name: newStudent.name,
+        role: 'student',
+        lastLogin: new Date().toISOString().slice(0, 16).replace('T', ' ')
+      };
+    }
+  }
+
+  // Send success message to parent window and close popup
+  res.send(`
+    <html>
+      <body>
+        <script>
+          if (window.opener) {
+            window.opener.postMessage({ 
+              type: 'GOOGLE_AUTH_SUCCESS', 
+              user: ${JSON.stringify(userPayload)} 
+            }, '*');
+            window.close();
+          } else {
+            try {
+              localStorage.setItem('library_user', JSON.stringify(${JSON.stringify(userPayload)}));
+            } catch(e) {}
+            window.location.href = '/';
+          }
+        </script>
+        <p>Authentication successful. Logging you in... This window should close automatically.</p>
+      </body>
+    </html>
+  `);
+});
+
+// -----------------------------------------------------------------------------
 // CONNECTION STATUS & DIAGNOSTICS
 // -----------------------------------------------------------------------------
 app.get('/api/mysql-status', async (req, res) => {
