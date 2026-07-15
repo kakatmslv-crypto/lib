@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Book, Category, Language, WishlistItem, User } from '../types';
 import { translations } from '../utils/translations';
 import { generateBarcodeSVG, generateBookBarcode } from '../utils/barcode';
-import { Search, Plus, Edit2, Trash2, Printer, X, Save, Check, Filter, Camera, Tag, QrCode, Heart, ShoppingBag, Loader2, GripVertical, HelpCircle, FolderOpen, ArrowRight, Bell, Mail, Download, Upload } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Printer, X, Save, Check, Filter, Camera, Tag, QrCode, Heart, ShoppingBag, Loader2, GripVertical, HelpCircle, FolderOpen, ArrowRight, Bell, Mail, Download, Upload, Sparkles } from 'lucide-react';
 import CameraPhotoTaker from './CameraPhotoTaker';
 import QRCode from 'qrcode';
 import { QRCodeSVG } from 'qrcode.react';
@@ -37,6 +37,7 @@ interface BookManagementProps {
   currentUser?: User | null;
   onShowSuccess?: (msg: string) => void;
   onShowError?: (msg: string) => void;
+  onBulkAddBooks?: (books: Book[]) => Promise<void>;
 }
 
 interface BookQRCodeProps {
@@ -72,6 +73,7 @@ export default function BookManagement({
   currentUser,
   onShowSuccess,
   onShowError,
+  onBulkAddBooks,
 }: BookManagementProps) {
   const t = translations[language];
   const isStudent = currentUser?.role === 'student';
@@ -176,11 +178,19 @@ export default function BookManagement({
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
 
+  // Pagination State for Books
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+
   React.useEffect(() => {
     if (initialSearchTerm !== undefined) {
       setSearchTerm(initialSearchTerm);
     }
   }, [initialSearchTerm]);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, selectedStatus]);
 
   // Tab control
   const [activeTab, setActiveTab] = useState<'inventory' | 'categories-drag' | 'wishlist'>('inventory');
@@ -335,6 +345,80 @@ export default function BookManagement({
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvParsingError, setCsvParsingError] = useState<string | null>(null);
   const [csvPreviewData, setCsvPreviewData] = useState<any[]>([]);
+
+  // Bulk 3,000 book generator
+  const [isGenerating3000, setIsGenerating3000] = useState(false);
+
+  const handleGenerate3000Books = async () => {
+    const confirmMessage = language === 'kh'
+      ? 'តើអ្នកពិតជាចង់បង្កើតសៀវភៅគំរូចំនួន ៣,០០០ ក្បាលបន្ថែមទៀតមែនទេ? វានឹងជួយអ្នកក្នុងការធ្វើតេស្តប្រព័ន្ធជាមួយទិន្នន័យច្រើន។'
+      : 'Are you sure you want to generate 3,000 more sample books? This is helpful for performance testing with large datasets.';
+
+    if (!confirm(confirmMessage)) return;
+
+    setIsGenerating3000(true);
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      const generated: Book[] = [];
+      const prefixes = ["សៀវភៅសិក្សាគោល", "ស្រាវជ្រាវ", "គោលការណ៍គ្រឹះនៃ", "មេរៀនសង្ខេប និងលំហាត់", "គន្លឹះដោះស្រាយលំហាត់", "សៀវភៅជំនួយស្មារតី"];
+      
+      const subjectsMap: Record<string, string[]> = {
+        'cat-kh': ["អក្សរសិល្ប៍ខ្មែរ ថ្នាក់ទី១២", "អក្សរសិល្ប៍ខ្មែរ ថ្នាក់ទី១១", "រឿង ទុំទាវ វិភាគ", "រឿង កុលាបប៉ៃលិន សិក្សា", "ក្បួនតែងសេចក្តី ថ្នាក់វិទ្យាល័យ", "ទស្សនវិទ្យាអក្សរសាស្ត្រ", "អក្សរសិល្ប៍ប្រជាប្រិយខ្មែរ", "វចនានុក្រមភាសាខ្មែរ សង្ខេប"],
+        'cat-math': ["គណិតវិទ្យា ថ្នាក់ទី១២", "ធរណីមាត្រ ថ្នាក់វិទ្យាល័យ", "ពិជគណិត និងវិភាគ", "លំហាត់ព្រំដែន និងអាំងតេក្រាល", "លំហាត់ប្រូបាប៊ីលីតេ ពិសេស", "គណិតវិទ្យាថ្នាក់ទី១០-១១", "រូបមន្តមាស គណិតវិទ្យា", "គន្លឹះដោះស្រាយគណិតវិទ្យា រហ័ស"],
+        'cat-eng': ["English Grade 12 Textbook", "English Grammar and Composition", "Vocabulary Builder Level 3", "IELTS Preparation Master", "High School Writing Essentials", "Interactive English Dialogues", "Reading Comprehension Skills", "Phonetics and Speaking Guide"],
+        'cat-sci': ["រូបវិទ្យា ថ្នាក់ទី១២ ភាគ១", "គីមីវិទ្យា សរីរាង្គ", "ជីវវិទ្យា និងប្រព័ន្ធអេកូឡូស៊ី", "លំហាត់រូបវិទ្យា ត្រៀមប្រឡងបាក់ឌុប", "គីមីវិទ្យា អសរីរាង្គ ថ្នាក់ទី១១", "មេរៀនរូបវិទ្យាសង្ខេប", "ជីវវិទ្យា កោសិកា និងហ្សែន", "ពិសោធន៍គីមីវិទ្យាជាក់ស្តែង"],
+        'cat-hist': ["ប្រវត្តិវិទ្យា ថ្នាក់ទី១២", "ប្រវត្តិសាស្ត្រខ្មែរ សង្ខេប", "ចក្រភពអង្គរ និងភាពរុងរឿង", "ប្រវត្តិសាស្ត្រអាស៊ីអាគ្នេយ៍", "សង្គ្រាមលោកលើកទី១ និងទី២", "ប្រវត្តិសាស្ត្រពិភពលោកទំនើប", "អរិយធម៌ខ្មែរ និងបរទេស", "ការយល់ដឹងពីសង្គមវិទ្យា"]
+      };
+
+      const authors = ["គឹម សេង", "សុខ ជា", "ចាន់ ថន", "ឡុង សារិន", "ម៉ៅ សំណាង", "អ៊ុំ សារឹម", "សួន សុជាតិ", "ព្រំ វីរៈ", "លី ប៊ុនហ៊ាង", "សួង សុភ័ក្ត្រ", "ហេង មុនី", "កែវ សុវណ្ណ", "សេង សុភ័ក្រ", "ឆែម បូរ៉ា", "ទេព សុភី"];
+
+      const cats = categories.length > 0 ? categories.map(c => c.id) : ['cat-kh', 'cat-math', 'cat-eng', 'cat-sci', 'cat-hist'];
+      const timestamp = Date.now();
+
+      for (let i = 1; i <= 3000; i++) {
+        const catId = cats[Math.floor(Math.random() * cats.length)];
+        const subList = subjectsMap[catId] || subjectsMap['cat-kh'];
+        const subject = subList[Math.floor(Math.random() * subList.length)];
+        const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+        const title = catId === 'cat-eng' ? `${prefix} ${subject}` : `${prefix}${subject}`;
+        const author = authors[Math.floor(Math.random() * authors.length)];
+        const publishYear = 2015 + Math.floor(Math.random() * 12);
+        
+        // Generate beautiful unique 12-digit barcode: 855000000000 + i
+        const barcodeNum = 855000000000 + (timestamp % 1000000) + i;
+        const barcode = String(barcodeNum);
+
+        const book: Book = {
+          id: `b-gen-${timestamp}-${i}`,
+          title,
+          barcode,
+          categoryId: catId,
+          author,
+          publishYear,
+          status: 'available',
+          location: `Shelf ${String.fromCharCode(65 + Math.floor(Math.random() * 5))}-${1 + Math.floor(Math.random() * 5)}`,
+          addedDate: new Date().toISOString().split('T')[0]
+        };
+        generated.push(book);
+      }
+
+      if (onBulkAddBooks) {
+        await onBulkAddBooks(generated);
+      } else {
+        for (const bk of generated) {
+          onAddBook(bk);
+        }
+      }
+    } catch (err: any) {
+      if (onShowError) {
+        onShowError(err.message || "Failed to generate books");
+      }
+    } finally {
+      setIsGenerating3000(false);
+    }
+  };
 
   const openAlertModal = (book: Book) => {
     setAlertBook(book);
@@ -608,6 +692,12 @@ export default function BookManagement({
 
     return matchesSearch && matchesCategory && matchesStatus;
   });
+
+  // Pagination calculations
+  const totalItems = filteredBooks.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const activePage = Math.min(currentPage, Math.max(1, totalPages));
+  const displayedBooks = filteredBooks.slice((activePage - 1) * itemsPerPage, activePage * itemsPerPage);
 
   // CSV Parser Helper
   const parseCSV = (text: string): string[][] => {
@@ -1081,6 +1171,23 @@ export default function BookManagement({
               </button>
 
               <button
+                type="button"
+                id="generate-3000-books-btn"
+                disabled={isGenerating3000}
+                onClick={handleGenerate3000Books}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-4 py-2.5 rounded-2xl shadow-md hover:shadow-lg hover:shadow-indigo-500/10 transition duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGenerating3000 ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4 text-indigo-200" />
+                )}
+                {isGenerating3000 
+                  ? (language === 'kh' ? 'កំពុងបង្កើត...' : 'Generating...') 
+                  : (language === 'kh' ? 'បង្កើតសៀវភៅ ៣,០០០ ក្បាល' : 'Generate 3,000 Books')}
+              </button>
+
+              <button
                 id="add-book-btn"
                 onClick={openAddModal}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2.5 rounded-2xl shadow-md hover:shadow-lg hover:shadow-blue-500/10 transition duration-150 cursor-pointer"
@@ -1110,8 +1217,8 @@ export default function BookManagement({
               </tr>
             </thead>
             <tbody className="divide-y divide-white/20 text-sm">
-              {filteredBooks.length > 0 ? (
-                filteredBooks.map((book) => {
+              {displayedBooks.length > 0 ? (
+                displayedBooks.map((book) => {
                   const cat = categories.find((c) => c.id === book.categoryId);
                   return (
                     <tr key={book.id} className="hover:bg-white/45 transition">
@@ -1279,7 +1386,7 @@ export default function BookManagement({
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="text-center py-10 text-slate-400 font-bold text-xs">
+                  <td colSpan={8} className="text-center py-10 text-slate-400 font-bold text-xs">
                     {language === 'kh' ? 'មិនរកឃើញសៀវភៅតាមតម្រងឡើយ' : 'No books match the selected criteria.'}
                   </td>
                 </tr>
@@ -1287,6 +1394,109 @@ export default function BookManagement({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Bar */}
+        {totalItems > 0 && (
+          <div className="px-6 py-4 bg-slate-50/50 backdrop-blur border-t border-slate-150 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+              <span>{language === 'kh' ? 'បង្ហាញ' : 'Show'}</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-indigo-400 font-bold"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+                <option value={500}>500</option>
+              </select>
+              <span>{language === 'kh' ? 'ជួរក្នុងមួយទំព័រ' : 'rows per page'}</span>
+            </div>
+
+            <div className="text-xs font-bold text-slate-600">
+              {language === 'kh' ? (
+                <span>
+                  បង្ហាញពី <span className="text-indigo-600">{(activePage - 1) * itemsPerPage + 1}</span> ដល់{' '}
+                  <span className="text-indigo-600">{Math.min(activePage * itemsPerPage, totalItems)}</span> នៃ{' '}
+                  <span className="text-indigo-600">{totalItems}</span> ក្បាលសៀវភៅ
+                </span>
+              ) : (
+                <span>
+                  Showing <span className="text-indigo-600">{(activePage - 1) * itemsPerPage + 1}</span> to{' '}
+                  <span className="text-indigo-600">{Math.min(activePage * itemsPerPage, totalItems)}</span> of{' '}
+                  <span className="text-indigo-600">{totalItems}</span> books
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={activePage === 1}
+                onClick={() => setCurrentPage(1)}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-600 transition cursor-pointer"
+                title="First Page"
+              >
+                {"<<"}
+              </button>
+              <button
+                type="button"
+                disabled={activePage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-bold text-slate-600 transition cursor-pointer"
+              >
+                {language === 'kh' ? 'មុន' : 'Prev'}
+              </button>
+
+              {(() => {
+                const buttons = [];
+                const startPage = Math.max(1, activePage - 2);
+                const endPage = Math.min(totalPages, activePage + 2);
+
+                for (let i = startPage; i <= endPage; i++) {
+                  buttons.push(
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setCurrentPage(i)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        activePage === i
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10'
+                          : 'border border-slate-200 bg-white hover:bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {i}
+                    </button>
+                  );
+                }
+                return buttons;
+              })()}
+
+              <button
+                type="button"
+                disabled={activePage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-bold text-slate-600 transition cursor-pointer"
+              >
+                {language === 'kh' ? 'បន្ទាប់' : 'Next'}
+              </button>
+              <button
+                type="button"
+                disabled={activePage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-600 transition cursor-pointer"
+                title="Last Page"
+              >
+                {">>"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       </>
       ) : activeTab === 'categories-drag' ? (

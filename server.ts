@@ -398,6 +398,86 @@ app.get('/api/mysql-status', async (req, res) => {
   }
 });
 
+// Configure MySQL database parameters dynamically
+app.post('/api/mysql-config', async (req, res) => {
+  const { host, port, user, password, database } = req.body;
+  try {
+    process.env.MYSQL_HOST = host;
+    process.env.MYSQL_PORT = String(port || '3306');
+    process.env.MYSQL_USER = user;
+    process.env.MYSQL_PASSWORD = password;
+    process.env.MYSQL_DATABASE = database;
+
+    // Reset pool so it re-initializes on next query
+    pool = null;
+    isDbOffline = false;
+
+    // Try to test connection and ensure tables exist
+    await ensureTablesExist();
+
+    if (isDbOffline) {
+      return res.status(500).json({ success: false, error: "Failed to connect with provided credentials." });
+    }
+
+    res.json({ success: true, message: "MySQL configuration updated and connection established." });
+  } catch (err: any) {
+    isDbOffline = true;
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Full database batch sync
+app.post('/api/mysql-sync', async (req, res) => {
+  const { categories, books, students, records, wishlist, roles, users } = req.body;
+
+  if (isDbOffline) {
+    // Save to offline storage
+    if (categories) offlineStore.categories = categories;
+    if (books) offlineStore.books = books;
+    if (students) offlineStore.students = students;
+    if (records) offlineStore.records = records;
+    if (wishlist) offlineStore.wishlist = wishlist;
+    if (roles) offlineStore.roles = roles;
+    if (users) offlineStore.users = users;
+    saveOfflineDb();
+    return res.json({ success: true, message: "Synchronized with offline storage." });
+  }
+
+  let connection: mysql.PoolConnection | null = null;
+  try {
+    const dbPool = await getMysqlPool();
+    connection = await dbPool.getConnection();
+    await connection.beginTransaction();
+
+    // Helper to safely clear and upsert to a table
+    const syncTable = async (tableName: string, list: any[]) => {
+      if (!list || !Array.isArray(list)) return;
+      await connection!.execute(`DELETE FROM \`${tableName}\``);
+      for (const item of list) {
+        await upsertRow(connection!, tableName, item.id, item);
+      }
+    };
+
+    await syncTable('categories', categories);
+    await syncTable('roles', roles);
+    await syncTable('users', users);
+    await syncTable('books', books);
+    await syncTable('students', students);
+    await syncTable('records', records);
+    await syncTable('wishlist', wishlist);
+
+    await connection.commit();
+    res.json({ success: true, message: "MySQL database synchronized successfully." });
+  } catch (err: any) {
+    if (connection) {
+      try { await connection.rollback(); } catch {}
+    }
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
 // -----------------------------------------------------------------------------
 // BATCH AUTO-SAVE & SYNC TRANSACTION ENDPOINT
 // -----------------------------------------------------------------------------

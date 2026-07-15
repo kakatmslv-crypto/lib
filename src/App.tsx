@@ -527,43 +527,71 @@ School Librarian`;
   // Sync state to local storage ONLY if not in cloud mode (avoid conflict with firestore)
   useEffect(() => {
     if (!isCloud) {
-      localStorage.setItem('library_books', JSON.stringify(books));
+      try {
+        localStorage.setItem('library_books', JSON.stringify(books));
+      } catch (err) {
+        console.warn("Storage quota exceeded or storage unavailable for books:", err);
+      }
     }
   }, [books, isCloud]);
 
   useEffect(() => {
     if (!isCloud) {
-      localStorage.setItem('library_students', JSON.stringify(students));
+      try {
+        localStorage.setItem('library_students', JSON.stringify(students));
+      } catch (err) {
+        console.warn("Storage quota exceeded or storage unavailable for students:", err);
+      }
     }
   }, [students, isCloud]);
 
   useEffect(() => {
     if (!isCloud) {
-      localStorage.setItem('library_records', JSON.stringify(records));
+      try {
+        localStorage.setItem('library_records', JSON.stringify(records));
+      } catch (err) {
+        console.warn("Storage quota exceeded or storage unavailable for records:", err);
+      }
     }
   }, [records, isCloud]);
 
   useEffect(() => {
     if (!isCloud) {
-      localStorage.setItem('library_categories', JSON.stringify(categories));
+      try {
+        localStorage.setItem('library_categories', JSON.stringify(categories));
+      } catch (err) {
+        console.warn("Storage quota exceeded or storage unavailable for categories:", err);
+      }
     }
   }, [categories, isCloud]);
 
   useEffect(() => {
     if (!isCloud) {
-      localStorage.setItem('library_roles', JSON.stringify(roles));
+      try {
+        localStorage.setItem('library_roles', JSON.stringify(roles));
+      } catch (err) {
+        console.warn("Storage quota exceeded or storage unavailable for roles:", err);
+      }
     }
   }, [roles, isCloud]);
 
   useEffect(() => {
     if (!isCloud) {
-      localStorage.setItem('library_users', JSON.stringify(users));
+      try {
+        localStorage.setItem('library_users', JSON.stringify(users));
+      } catch (err) {
+        console.warn("Storage quota exceeded or storage unavailable for users:", err);
+      }
     }
   }, [users, isCloud]);
 
   useEffect(() => {
     if (!isCloud) {
-      localStorage.setItem('library_wishlist', JSON.stringify(wishlist));
+      try {
+        localStorage.setItem('library_wishlist', JSON.stringify(wishlist));
+      } catch (err) {
+        console.warn("Storage quota exceeded or storage unavailable for wishlist:", err);
+      }
     }
   }, [wishlist, isCloud]);
 
@@ -735,6 +763,36 @@ School Librarian`;
     );
     if (isMysqlConnected) {
       await syncToMysql('/api/books', 'POST', newBook);
+    }
+  };
+
+  const handleBulkAddBooks = async (newBooks: Book[]) => {
+    setBooks(prev => [...newBooks, ...prev]);
+    showSuccess(
+      language === 'kh'
+        ? `បានបន្ថែមសៀវភៅចំនួន ${newBooks.length.toLocaleString()} ក្បាលដោយជោគជ័យ!`
+        : `Successfully added ${newBooks.length.toLocaleString()} books in bulk!`
+    );
+    if (isMysqlConnected) {
+      const chunkSize = 500;
+      for (let i = 0; i < newBooks.length; i += chunkSize) {
+        const chunk = newBooks.slice(i, i + chunkSize);
+        const mutations = chunk.map(bk => ({
+          id: `mut-${bk.id}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          entity: 'books',
+          action: 'insert',
+          data: bk
+        }));
+        try {
+          await fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mutations }),
+          });
+        } catch (err) {
+          console.error("Bulk sync error for chunk:", err);
+        }
+      }
     }
   };
 
@@ -1293,6 +1351,7 @@ School Librarian`;
             currentUser={currentUser}
             onShowSuccess={showSuccess}
             onShowError={showError}
+            onBulkAddBooks={handleBulkAddBooks}
           />
         );
       case 'students':
